@@ -1,0 +1,17 @@
+dotenv
+pyarrow
+minio 
+
+# Binance 
+binance-sdk-spot
+binance-connector
+python-binance
+
+# Apache Spark (optional for big data)
+pyspark==3.5.0
+
+# Kafka (optional for streaming)
+kafka-python==2.0.2 
+
+redis
+psycopg2
