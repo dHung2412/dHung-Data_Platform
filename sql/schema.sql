@@ -1,158 +1,125 @@
-CREATE SCHEMA IF NOT EXISTS risk_dwh;
+-- DEV ENV
+DROP TABLE IF EXISTS Dim_Customer CASCADE;
+DROP TABLE IF EXISTS Dim_Date CASCADE;
+DROP TABLE IF EXISTS Dim_Card CASCADE;
+DROP TABLE IF EXISTS Dim_Account CASCADE;
+DROP TABLE IF EXISTS Dim_Branch CASCADE;
+DROP TABLE IF EXISTS Dim_Loan CASCADE;
 
--- Schema mặc định cho phiên làm việc
-SET search_path = risk_dwh;
+DROP TABLE IF EXISTS Fact_Transaction CASCADE;
+DROP TABLE IF EXISTS Fact_Loan CASCADE;
+DROP TABLE IF EXISTS Fact_Feedback CASCADE;
+DROP TABLE IF EXISTS Fact_Card CASCADE;
 
+-----------------------------
+-----------Dimension---------
+-----------------------------
+-- 1. Dim Customer
+CREATE TABLE Dim_Customer (
+    customer_key                SERIAL PRIMARY KEY,       -- Surrogate Key
+    customer_id_source          VARCHAR(50) NOT NULL,
+    birth_year                  INT,
+    gender                      VARCHAR(50) NOT NULL,
+    city                        VARCHAR(100) NOT NULL,
 
-/*********************************************************************
- * DIMENSION TABLES (BẢNG CHIỀU)
- * Các bảng này lưu trữ "who", "what", "where", "when", "why"
- *********************************************************************/
- 
--- Bảng dim thời gian 
--- Bảng này thường được điền dữ liệu bằng một thủ tục (procedure)
-CREATE TABLE IF NOT EXISTS risk_dwh.dim_date (
-    date_key          INTEGER PRIMARY KEY,
-    full_date         DATE NOT NULL,
-    day_of_week       SMALLINT NOT NULL, -- (1=Chủ Nhật, 7=Thứ 7)
-    day_of_month      SMALLINT NOT NULL,
-    day_of_year       SMALLINT NOT NULL,
-    week_of_year      SMALLINT NOT NULL,
-    month             SMALLINT NOT NULL,
-    month_name        VARCHAR(20) NOT NULL,
-    quarter           SMALLINT NOT NULL,
-    year              SMALLINT NOT NULL,
-    is_weekend        BOOLEAN NOT NULL,
-    is_holiday        BOOLEAN NOT NULL DEFAULT FALSE
+    -- SCD Type 2
+    valid_from_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    valid_to_date DATE DEFAULT '9999-12-31',
+    is_current BOOLEAN DEFAULT TRUE,
+
+    CONSTRAINT unique_dim_customer_id_current UNIQUE (customer_id_source, valid_to_date)
 );
+COMMENT ON TABLE Dim_Customer IS "Lưu trữ thông tin của khách hàng (SCD Type 2).";
 
--- Bảng dim danh mục rủi ro (Risk category)
--- Thường có cấu trúc phân cấp (Hierarchy)
-CREATE TABLE IF NOT EXISTS risk_dwh.dim_risk_category (
-    risk_category_key   INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    risk_category_code  VARCHAR(20) UNIQUE,  -- Business key
-    risk_category_l1    VARCHAR(100) NOT NULL, -- Cấp 1 (ví dụ: Rủi ro Tín dụng, Rủi ro Vận hành)
-    risk_category_l2    VARCHAR(100),          -- Cấp 2 (ví dụ: Rủi ro Gian lận)
-    risk_category_l3    VARCHAR(100),          -- Cấp 3 (ví dụ: Gian lận nội bộ)
-    description         TEXT
+CREATE TABLE Dim_Customer_PII (
+    customer_key                INT PRIMARY KEY REFERENCES Dim_Customer(customer_key) ON DELETE CASCADE,
+    first_name                  VARCHAR(100) NOT NULL,
+    last_name                   VARCHAR(100) NOT NULL,
+    address                     VARCHAR(200) NOT NULL,
+    contact_number              VARCHAR(50) NOT NULL,
+    email                       VARCHAR(50) NOT NULL,
 );
+COMMENT ON TABLE Dim_Customer_PII IS "Lưu trữ thông tin chi tiết của khách hàng.";
 
--- Bảng dim đơn vị kinh doanh
--- Thường có cấu trúc phân cấp (Hierarchy)
-CREATE TABLE IF NOT EXISTS risk_dwh.dim_business_unit (
-    business_unit_key   INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    business_unit_code  VARCHAR(20) UNIQUE, -- Business key
-    unit_name           VARCHAR(150) NOT NULL,
-    department_name     VARCHAR(100),
-    division_name       VARCHAR(100),
-    region_name         VARCHAR(100)
+CREATE INDEX idx_dim_customer_business_key ON Dim_Customer(customer_id_source); -- Index
+
+-- 2. Dim Date
+CREATE TABLE Dim_Date (
+    date_key                    DATE PRIMARY KEY,        -- YYYY-MM-DD       -- Semantic Key
+    full_date_desc              VARCHAR(20) NOT NULL,    -- DD-MM-YYYY
+    day_of_week_num             SMALLINT NOT NULL,       -- Chủ nhật = 1, ...
+    day_of_week_name            VARCHAR(10) NOT NULL,    -- 'Thứ hai', ...
+    day_of_month                SMALLINT NOT NULL,       -- Ngày '1' -> Ngày '31'
+    month_num                   SMALLINT NOT NULL,       -- Tháng '1' -> Tháng '12'
+    month_name                  ARCHAR(20) NOT NULL      -- 'Tháng 1'
+    quarter_num                 SMALLINT NOT NULL,       -- Quý '1' -> '4'
+    year_num                    SMALLINT NOT NULL,       -- '2025'
+    is_weekend                  BOOLEAN NOT NULL DEFAULT FALSE,
+    is_holiday                  BOOLEAN NOT NULL DEFAULT FALSE
 );
+COMMENT ON TABLE Dim_Date IS 'Lưu trữ các thuộc tính về thời gian.';
 
--- Bảng dim biện pháp kiểm soát (Control)
--- Mô tả các biện pháp được áp dụng để giảm thiểu rủi ro
-CREATE TABLE IF NOT EXISTS risk_dwh.dim_control (
-    control_key         INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    control_id          VARCHAR(50) UNIQUE NOT NULL, -- Business key
-    control_name        VARCHAR(255) NOT NULL,
-    control_description TEXT,
-    control_type        VARCHAR(50), -- (ví dụ: 'Preventive', 'Detective', 'Corrective')
-    control_owner       VARCHAR(100),
-    is_active           BOOLEAN NOT NULL DEFAULT TRUE
+-- 3. Dim Loan
+CREATE TABLE Dim_Loan (
+    loan_key                    SERIAL PRIMARY KEY,       -- Surrogate Key
+    loan_id_source              VARCHAR(50) NOT NULL,     -- Bussiness Key
+    loan_type                   VARCHAR(100) NOT NULL,
+    loan_amount                 NUMERIC(18,2) NOT NULL,
+    interest_rate               NUMERIC(5,4) NOT NULL,    -- Lãi suất (vd: 0.0700)
+    loan_term                   INT NOT NULL,             -- Thời hạn vay
+    loan_status                 VARCHAR(20) NOT NULL,
+
+    -- SCD Type 2
+    valid_from_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    valid_to_date DATE DEFAULT '9999-12-31'
+    is_current BOOLEAN DEFAULT TRUE,
+
+    CONSTRAINT unique_dim_loan_id_current UNIQUE (loan_id_source, valid_to_date)
 );
+COMMENT ON TABLE Dim_Loan IS 'Lưu trữ các thuộc tính của hợp đồng vay (SCD Type 2).';
+CREATE INDEX idx_dim_loan_bussiness_key ON Dim_Loan(loan_id_source);
 
--- Bảng dim khách hàng 
--- Thiết kế theo dạng SCF Type 2 (Slowly Changing Dimension)
-CREATE TABLE IF NOT EXISTS risk_dwh.dim_customer (
-    customer_key        BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY, -- Surrogate key
-    customer_id         VARCHAR(50) NOT NULL,  -- Business key
-    customer_name       VARCHAR(255),
-    customer_segment    VARCHAR(100),
-    industry            VARCHAR(100),
-    region              VARCHAR(100),
-    -- Cột cho SCD Type 2
-    valid_from          TIMESTAMP NOT NULL DEFAULT NOW(),
-    valid_to            TIMESTAMP,
-    is_current          BOOLEAN NOT NULL DEFAULT TRUE
+-- 4. Dim Branch
+CREATE TABLE Dim_Branch (
+    branch_key                  SERIAL PRIMARY KEY,
+    branch_id                   VARCHAR(50) NOT NULL UNIQUE -- Bussiness Key
+    branch_name                 VARCHAR(255),  
+    branch_location             VARCHAR(255)             
 );
+COMMENT ON TABLE Dim_Branch IS 'Lưu trữ thông tin chi nhánh.';
 
--- Index cho business key và cột cờ is_current
-CREATE INDEX IF NOT EXISTS idx_dim_customer_id ON risk_dwh.dim_customer(customer_id);
-CREATE INDEX IF NOT EXISTS idx_dim_customer_current ON risk_dwh.dim_customer(is_current);
+-- 5. Dim Account
+CREATE TABLE Dim_Account(
+    account_key                 SERIAL PRIMARY KEY,
+    account_id                  VARCHAR(50) NOT NULL,       -- Rebuild
+    account_type                VARCHAR(100) NOT NULL,
+    date_of_account_opening     DATE NOT NULL,    
+    last_transaction_date       DATE.                       -- Upload by Source -> overwrite by ETL
 
--- Bảng dim sản phẩm (Product)
-CREATE TABLE IF NOT EXISTS risk_dwh.dim_product (
-    product_key         INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    product_id          VARCHAR(50) NOT NULL UNIQUE, -- Business key
-    product_name        VARCHAR(255) NOT NULL,
-    product_category    VARCHAR(100),
-    product_line        VARCHAR(100)
+    -- SCD Type 2
+    valid_from_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    valid_to_date DATE DEFAULT '9999-12-31'
+    is_current BOOLEAN DEFAULT TRUE,
+
+    CONSTRAINT unique_dim_account_id_current UNIQUE (account_id, valid_to_date)
 );
+COMMENT ON TABLE Dim_Account IS 'Lưu trữ thông tin các tài khoản ngân hàng (SCD Type 2).';
+CREATE INDEX idx_dim_account_business_key ON Dim_Account(account_id);
 
--- Bảng dim mức độ rủi ro (Risk Rating)
--- (ví dụ: Thấp, Trung bình, Cao, Rất cao)
-CREATE TABLE IF NOT EXISTS risk_dwh.dim_risk_rating (
-    risk_rating_key     INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    risk_rating_label   VARCHAR(50) NOT NULL, -- (ví dụ: 'Low', 'Medium', 'High', 'Critical')
-    rating_value_min    DECIMAL(5, 2), -- Điểm tối thiểu
-    rating_value_max    DECIMAL(5, 2)  -- Điểm tối đa
-);
-
-/*********************************************************************
- * FACT TABLES (BẢNG SỰ KIỆN)
- * Các bảng này lưu trữ các số liệu (lớn)
- *********************************************************************/
-
--- Bảng SỰ KIỆN RỦI RO ĐÃ XẢY RA (Risk Events)
--- Lưu trữ các sự kiện rủi ro đã thực sự xảy ra (ví dụ: một giao dịch gian lận)
-CREATE TABLE IF NOT EXISTS risk_dwh.fact_risk_event (
-    event_pk            BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,     -- Khóa chính của bảng fact
-    event_id            VARCHAR(50) NOT NULL,      -- Business key từ hệ thống nguồn
+-- 6. Dim Card
+CREATE TABLE Dim_Card (
+    card_key                    SERIAL PRIMARY KEY,
+    card_id_source              VARCHAR(50) NOT NULL,       -- Rebuild
+    card_type                   VARCHAR(50) NOT NULL,       -- Rebuild,
+    credit_limit                NUMERIC(18,2) NOT NULL      -- Hạn mức tín dụng
+    rewards_points              INT DEFAULT 0,              -- Số điểm thưởng hiện tại -> overwrite by ETL
     
-    -- --- Foreign Keys (Khóa ngoại) ---
-    event_date_key      INTEGER NOT NULL REFERENCES risk_dwh.dim_date(date_key),
-    discovery_date_key  INTEGER NOT NULL REFERENCES risk_dwh.dim_date(date_key),
-    risk_category_key   INTEGER NOT NULL REFERENCES risk_dwh.dim_risk_category(risk_category_key),
-    business_unit_key   INTEGER NOT NULL REFERENCES risk_dwh.dim_business_unit(business_unit_key),
-    control_key         INTEGER REFERENCES risk_dwh.dim_control(control_key), -- Biện pháp kiểm soát (nếu có)
-    customer_key        BIGINT REFERENCES risk_dwh.dim_customer(customer_key),
-    product_key         INTEGER REFERENCES risk_dwh.dim_product(product_key),
+    -- SCD Type 2
+    valid_from_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    valid_to_date DATE DEFAULT '9999-12-31'
+    is_current BOOLEAN DEFAULT TRUE,
 
-    -- --- Measures (Số liệu) ---
-    gross_loss_amount   DECIMAL(18, 2) NOT NULL DEFAULT 0.00, -- Tổn thất ban đầu
-    recovery_amount     DECIMAL(18, 2) NOT NULL DEFAULT 0.00, -- Số tiền thu hồi được
-    net_loss_amount     DECIMAL(18, 2) NOT NULL DEFAULT 0.00, -- Tổn thất ròng
-    event_count         INTEGER NOT NULL DEFAULT 1 -- Thường dùng để đếm
+    CONSTRAINT unique_dim_card_id_current UNIQUE (card_id_source, valid_to_date)
 );
-
--- Tạo Index trên các khóa ngoại của bảng Fact để tăng tốc độ JOIN
-CREATE INDEX IF NOT EXISTS idx_fact_risk_event_date ON risk_dwh.fact_risk_event(event_date_key);
-CREATE INDEX IF NOT EXISTS idx_fact_risk_event_risk ON risk_dwh.fact_risk_event(risk_category_key);
-CREATE INDEX IF NOT EXISTS idx_fact_risk_event_unit ON risk_dwh.fact_risk_event(business_unit_key);
-CREATE INDEX IF NOT EXISTS idx_fact_risk_event_cust ON risk_dwh.fact_risk_event(customer_key);
-
--- Bảng SỰ KIỆN ĐÁNH GIÁ RỦI RO (Risk Assessments)
--- Lưu trữ các snapshot (bản ghi) của việc đánh giá rủi ro theo thời gian
--- (ví dụ: hàng tháng đánh giá rủi ro tín dụng của khách hàng)
-CREATE TABLE IF NOT EXISTS risk_dwh.fact_risk_assessment (
-    assessment_pk       BIGSERIAL PRIMARY KEY,
-    assessment_id       VARCHAR(50) NOT NULL, -- Business key
-    
-    -- --- Foreign Keys (Khóa ngoại) ---
-    assessment_date_key INTEGER NOT NULL REFERENCES risk_dwh.dim_date(date_key),
-    customer_key        BIGINT REFERENCES risk_dwh.dim_customer(customer_key),
-    product_key         INTEGER REFERENCES risk_dwh.dim_product(product_key),
-    business_unit_key   INTEGER REFERENCES risk_dwh.dim_business_unit(business_unit_key),
-    risk_category_key   INTEGER NOT NULL REFERENCES risk_dwh.dim_risk_category(risk_category_key),
-    risk_rating_key     INTEGER REFERENCES risk_dwh.dim_risk_rating(risk_rating_key),
-
-    -- --- Measures (Số liệu) ---
-    risk_score          DECIMAL(10, 4), -- Điểm rủi ro (ví dụ: 0-1000)
-    probability         DECIMAL(5, 4),  -- Xác suất xảy ra (ví dụ: 0.0 - 1.0)
-    impact_amount       DECIMAL(18, 2), -- Mức độ ảnh hưởng (nếu tính ra tiền)
-    expected_loss       DECIMAL(18, 2)  -- Tổn thất dự kiến (Probability * Impact)
-);
-
--- Tạo Index trên các khóa ngoại
-CREATE INDEX IF NOT EXISTS idx_fact_risk_assess_date ON risk_dwh.fact_risk_assessment(assessment_date_key);
-CREATE INDEX IF NOT EXISTS idx_fact_risk_assess_cust ON risk_dwh.fact_risk_assessment(customer_key);
-CREATE INDEX IF NOT EXISTS idx_fact_risk_assess_risk ON risk_dwh.fact_risk_assessment(risk_category_key);
+COMMENT ON TABLE Dim_Card IS 'Lưu trữ các thuộc tính của thẻ tín dụng/ghi nợ (SCD Type 2).';
+CREATE INDEX idx_dim_card_business_key ON Dim_Card(card_id_source);
