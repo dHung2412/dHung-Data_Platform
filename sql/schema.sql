@@ -7,9 +7,10 @@ DROP TABLE IF EXISTS Dim_Branch CASCADE;
 DROP TABLE IF EXISTS Dim_Loan CASCADE;
 
 DROP TABLE IF EXISTS Fact_Transaction CASCADE;
-DROP TABLE IF EXISTS Fact_Loan CASCADE;
+DROP TABLE IF EXISTS Fact_Loan_Application CASCADE;
 DROP TABLE IF EXISTS Fact_Feedback CASCADE;
-DROP TABLE IF EXISTS Fact_Card CASCADE;
+DROP TABLE IF EXISTS Fact_Account_Snapshot CASCADE;
+DROP TABLE IF EXISTS Fact_Card_Snapshot CASCADE;
 
 -----------------------------
 -----------Dimension---------
@@ -29,7 +30,7 @@ CREATE TABLE Dim_Customer (
 
     CONSTRAINT unique_dim_customer_id_current UNIQUE (customer_id_source, valid_to_date)
 );
-COMMENT ON TABLE Dim_Customer IS "Lưu trữ thông tin của khách hàng (SCD Type 2).";
+COMMENT ON TABLE Dim_Customer IS 'Lưu trữ thông tin của khách hàng (SCD Type 2).';
 
 CREATE TABLE Dim_Customer_PII (
     customer_key                INT PRIMARY KEY REFERENCES Dim_Customer(customer_key) ON DELETE CASCADE,
@@ -37,11 +38,11 @@ CREATE TABLE Dim_Customer_PII (
     last_name                   VARCHAR(100) NOT NULL,
     address                     VARCHAR(200) NOT NULL,
     contact_number              VARCHAR(50) NOT NULL,
-    email                       VARCHAR(50) NOT NULL,
+    email                       VARCHAR(50) NOT NULL
 );
-COMMENT ON TABLE Dim_Customer_PII IS "Lưu trữ thông tin chi tiết của khách hàng.";
+COMMENT ON TABLE Dim_Customer_PII IS 'Lưu trữ thông tin chi tiết của khách hàng.';
 
-CREATE INDEX idx_dim_customer_business_key ON Dim_Customer(customer_id_source); -- Index
+CREATE INDEX idx_dim_customer_business_key ON Dim_Customer(customer_id_source);
 
 -- 2. Dim Date
 CREATE TABLE Dim_Date (
@@ -51,7 +52,7 @@ CREATE TABLE Dim_Date (
     day_of_week_name            VARCHAR(10) NOT NULL,    -- 'Thứ hai', ...
     day_of_month                SMALLINT NOT NULL,       -- Ngày '1' -> Ngày '31'
     month_num                   SMALLINT NOT NULL,       -- Tháng '1' -> Tháng '12'
-    month_name                  ARCHAR(20) NOT NULL      -- 'Tháng 1'
+    month_name                  VARCHAR(20) NOT NULL,    -- 'Tháng 1'
     quarter_num                 SMALLINT NOT NULL,       -- Quý '1' -> '4'
     year_num                    SMALLINT NOT NULL,       -- '2025'
     is_weekend                  BOOLEAN NOT NULL DEFAULT FALSE,
@@ -62,7 +63,7 @@ COMMENT ON TABLE Dim_Date IS 'Lưu trữ các thuộc tính về thời gian.';
 -- 3. Dim Loan
 CREATE TABLE Dim_Loan (
     loan_key                    SERIAL PRIMARY KEY,       -- Surrogate Key
-    loan_id_source              VARCHAR(50) NOT NULL,     -- Bussiness Key
+    loan_id_source              VARCHAR(50) NOT NULL,     -- Business Key
     loan_type                   VARCHAR(100) NOT NULL,
     loan_amount                 NUMERIC(18,2) NOT NULL,
     interest_rate               NUMERIC(5,4) NOT NULL,    -- Lãi suất (vd: 0.0700)
@@ -71,18 +72,18 @@ CREATE TABLE Dim_Loan (
 
     -- SCD Type 2
     valid_from_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    valid_to_date DATE DEFAULT '9999-12-31'
+    valid_to_date DATE DEFAULT '9999-12-31',
     is_current BOOLEAN DEFAULT TRUE,
 
     CONSTRAINT unique_dim_loan_id_current UNIQUE (loan_id_source, valid_to_date)
 );
 COMMENT ON TABLE Dim_Loan IS 'Lưu trữ các thuộc tính của hợp đồng vay (SCD Type 2).';
-CREATE INDEX idx_dim_loan_bussiness_key ON Dim_Loan(loan_id_source);
+CREATE INDEX idx_dim_loan_business_key ON Dim_Loan(loan_id_source);
 
 -- 4. Dim Branch
 CREATE TABLE Dim_Branch (
     branch_key                  SERIAL PRIMARY KEY,
-    branch_id_source            VARCHAR(50) NOT NULL UNIQUE, -- Bussiness Key
+    branch_id_source            VARCHAR(50) NOT NULL, -- Business Key
     branch_name                 VARCHAR(255),  
     branch_location             VARCHAR(255)             
 );
@@ -101,17 +102,17 @@ CREATE TABLE Dim_Account(
     valid_to_date DATE DEFAULT '9999-12-31',
     is_current BOOLEAN DEFAULT TRUE,
 
-    CONSTRAINT unique_dim_account_id_current UNIQUE (account_id, valid_to_date)
+    CONSTRAINT unique_dim_account_id_current UNIQUE (account_id_source, valid_to_date)
 );
 COMMENT ON TABLE Dim_Account IS 'Lưu trữ thông tin các tài khoản ngân hàng (SCD Type 2).';
-CREATE INDEX idx_dim_account_business_key ON Dim_Account(account_id);
+CREATE INDEX idx_dim_account_business_key ON Dim_Account(account_id_source);
 
 -- 6. Dim Card
 CREATE TABLE Dim_Card (
     card_key                    SERIAL PRIMARY KEY,
     card_id_source              VARCHAR(50) NOT NULL,       -- Rebuild
-    card_type                   VARCHAR(50) NOT NULL,       -- Rebuild,
-    credit_limit                NUMERIC(18,2) NOT NULL,      -- Hạn mức tín dụng
+    card_type                   VARCHAR(50) NOT NULL,       -- Rebuild
+    credit_limit                NUMERIC(18,2) NOT NULL,     -- Hạn mức tín dụng
     rewards_points              INT DEFAULT 0,              -- Số điểm thưởng hiện tại -> overwrite by ETL
     
     -- SCD Type 2
@@ -145,14 +146,14 @@ CREATE TABLE Fact_Transaction (
 
     -- Measure
     transaction_amount              NUMERIC(18,2) NOT NULL,
-    acc_balancer_after_transaction  NUMERIC(18,2) NOT NULL,     -- Semi-additive
+    acc_balance_after_transaction   NUMERIC(18,2) NOT NULL,     -- Semi-additive
 
     -- FK Constraint
     CONSTRAINT fk_fact_trans_date FOREIGN KEY (date_key) REFERENCES Dim_Date(date_key),
     CONSTRAINT fk_fact_trans_customer FOREIGN KEY (customer_key) REFERENCES Dim_Customer(customer_key),
     CONSTRAINT fk_fact_trans_account FOREIGN KEY (account_key) REFERENCES Dim_Account(account_key),
     CONSTRAINT fk_fact_trans_branch FOREIGN KEY (branch_key) REFERENCES Dim_Branch(branch_key),
-    Constraint fk_fact_trans_card FOREIGN KEY (card_key) REFERENCES Dim_Card(card_key)
+    CONSTRAINT fk_fact_trans_card FOREIGN KEY (card_key) REFERENCES Dim_Card(card_key)
 );
 COMMENT ON TABLE Fact_Transaction IS 'Ghi lại chi tiết mỗi giao dịch. Granularity: 1 hàng / 1 giao dịch.';
 CREATE INDEX idx_fact_trans_date_key ON Fact_Transaction(date_key);
@@ -168,7 +169,7 @@ CREATE TABLE Fact_Account_Snapshot (
     customer_key                    INT NOT NULL,
 
     -- Measure
-    account_balace                  NUMERIC(18,2) NOT NULL,
+    account_balance                 NUMERIC(18,2) NOT NULL,
 
     PRIMARY KEY (snapshot_date_key, account_key),
     CONSTRAINT fk_fact_acc_snap_date FOREIGN KEY (snapshot_date_key) REFERENCES Dim_Date(date_key),
@@ -192,8 +193,8 @@ CREATE TABLE Fact_Card_Snapshot (
 
     PRIMARY KEY (snapshot_date_key, card_key),
     CONSTRAINT fk_fact_card_snap_date FOREIGN KEY (snapshot_date_key) REFERENCES Dim_Date(date_key),
-    CONSTRAINT fk_fact_card_snap_card FOREIGN KEY (card_key) REFERENCES Dim_Date(card_key),
-    CONSTRAINT fk_fact_card_snap_customer FOREIGN KEY (customer_key) REFERENCES Dim_Date(customer_key)
+    CONSTRAINT fk_fact_card_snap_card FOREIGN KEY (card_key) REFERENCES Dim_Card(card_key),
+    CONSTRAINT fk_fact_card_snap_customer FOREIGN KEY (customer_key) REFERENCES Dim_Customer(customer_key)
 );
 COMMENT ON TABLE Fact_Card_Snapshot IS 'Lưu snapshot tình trạng thẻ (ví dụ: vào ngày sao kê).';
 
@@ -236,9 +237,9 @@ CREATE TABLE Fact_Feedback (
     -- FK Constraint
     CONSTRAINT fk_fact_feedback_date FOREIGN KEY (feedback_date_key) REFERENCES Dim_Date(date_key),
     CONSTRAINT fk_fact_feedback_res_date FOREIGN KEY (resolution_date_key) REFERENCES Dim_Date(date_key),
-    CONSTRAINT fk_fact_feedback_customer FOREIGN KEY (customer_key) REFERENCES Dim_Customer(customer_key),
+    CONSTRAINT fk_fact_feedback_customer FOREIGN KEY (customer_key) REFERENCES Dim_Customer(customer_key)
 );
 COMMENT ON TABLE Fact_Feedback IS 'Ghi lại các sự kiện phản hồi từ khách hàng.';
 CREATE INDEX idx_fact_feedback_date_key ON Fact_Feedback(feedback_date_key);
-CREATE INDEX idx_fact_feedback_res_date_key ON Fact_Feedback(feedbackresolution_date_key_date_key);
+CREATE INDEX idx_fact_feedback_res_date_key ON Fact_Feedback(resolution_date_key);
 CREATE INDEX idx_fact_feedback_customer_key ON Fact_Feedback(customer_key);
