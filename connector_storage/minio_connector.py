@@ -28,23 +28,31 @@ class MinIOConnector:
         except (S3Error, TypeError) as e:
             print(f"----> Lỗi khởi tạo với MinIO client: {e}")
             self.client = None
+
+    def __enter__(self):
+        return self
     
+    def __exit__(self, exc_type, exc_value, traceback):
+        print(f"----> Đóng kết nối MinIO")
+        return False
+        
     def check_bucket_exists(self, bucket_name: str):
         """
         Xem 1 bucket có tồn tại không, nếu không tạo mới trước khi upload
         """
         if not self.client:
             print(f"----> Client chưa được tạo")
-            return
+            return False
         try:
             found = self.client.bucket_exists(bucket_name)
             if not found:
                 self.client.make_bucket(bucket_name)
                 print(f"----> Bucket {bucket_name} đã được tạo")
             else:
-                print(f"----> Bucket {bucket_name} chưa được tạo")
+                print(f"----> Bucket {bucket_name} đã tồn tại")
         except S3Error as e:
             print(f"---->  Lỗi khi kiểm tra/ tạo bucket {e}")
+            return False
 
     def upload_file(self, bucket_name: str, object_name: str, file_path: str):
         """
@@ -61,10 +69,14 @@ class MinIOConnector:
             print(f"----> Client chưa được tạo")
             return False
 
-        self.check_bucket_exists(bucket_name)
+        if not os.path.exists(file_path):
+            print(f"----> File không tồn tại {file_path}")
+
+        if not self.check_bucket_exists(bucket_name):
+            return False
 
         try:
-            print(f"----> Đang upload file '{file_path}' lên '{bucket_name}/{object_name}' ...")
+            print(f"----> Upload file '{file_path}' to '{bucket_name}/{object_name}' ...")
             self.client.fput_object(
                 bucket_name=bucket_name,
                 object_name=object_name,
@@ -91,6 +103,7 @@ class MinIOConnector:
         if not self.client:
             print(f"----> Client chưa được tạo")
             return False
+        
         try:
             print(f"----> Đang download file '{bucket_name}/{object_name}' về '{file_path}'")
             self.client.fget_object(
@@ -103,4 +116,5 @@ class MinIOConnector:
         except S3Error as e:
             print(f"----> Lỗi khi tải file về: {e}")
             return False
+    
         
