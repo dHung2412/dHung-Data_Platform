@@ -6,7 +6,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class BaseETL(ABC):
-    """Base class for all ETL components"""
     
     def __init__(self, name: str):
         self.name = name
@@ -14,7 +13,6 @@ class BaseETL(ABC):
     
     @abstractmethod
     def execute(self, *args, **kwargs) -> Any:
-        """Execute the ETL component"""
         pass
     
     def log_info(self, message: str):

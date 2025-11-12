@@ -2,3 +2,4 @@
 .venv
 data
 __pycache__
+src/storage/Comprehensive_Banking_Database.csv

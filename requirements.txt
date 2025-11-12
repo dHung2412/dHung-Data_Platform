@@ -15,5 +15,6 @@ kafka-python==2.0.2
 
 redis
 psycopg2
+sqlalchemy
 
 pandas

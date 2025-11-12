@@ -3,11 +3,11 @@ import pandas as pd
 from etl_design.base_etl import BaseETL
 from datetime import datetime
 
-class Dimension_Transformers(BaseETL):
+class DimensionTransformers(BaseETL):
     """Transform data for dimension tables"""
     
     def __init__(self):
-        super().__init__(Dimension_Transformers)
+        super().__init__(DimensionTransformers)
 
     def execute(self, df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
         """

@@ -3,9 +3,9 @@ from etl_design.base_etl import BaseETL
 from connector_storage.redis_connector import RedisConnect
 from typing import Dict
 
-class Redis_Cache(BaseETL):
+class RedisCache(BaseETL):
     def __init__(self, redis_config):
-        super().__init__("Redis_Cache")
+        super().__init__("RedisCache")
         self.config = redis_config
         self.connector = None
 

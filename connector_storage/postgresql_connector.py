@@ -2,9 +2,7 @@ import psycopg2
 from psycopg2 import OperationalError
 
 class PostgresConnect:
-    """
-    Một lớp connector cho PostgreSQL hỗ trợ context manager (with statement).
-    """
+    
     def __init__(self, host, port, user, password, dbname):
         self.host = host
         self.port = port
@@ -41,7 +39,7 @@ class PostgresConnect:
 
     def __enter__(self):
         self.connect()
-        return self # Trả về chính đối tượng để có thể truy cập conn và cursor
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()

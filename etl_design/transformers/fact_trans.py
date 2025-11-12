@@ -2,11 +2,11 @@ from typing import Dict
 import pandas as pd
 from etl_design.base_etl import BaseETL
 
-class Fact_Transformer(BaseETL):
+class FactTransformer(BaseETL):
     """Transform data for fact tables"""
 
     def __init__(self):
-        super().__init__(Fact_Transformer)
+        super().__init__(FactTransformer)
     
     def execute(self,df: pd.DataFrame, dimension_keys: Dict) -> Dict[str, pd.DataFrame]:
         """
@@ -44,7 +44,7 @@ class Fact_Transformer(BaseETL):
         
         trans_df = trans_df.rename(columns={
             'TransactionID': 'transaction_id_source',
-            'Transaction Date': 'date_key',
+            'Transaction Date': 'transaction_date',
             'Transaction Type': 'transaction_type',
             'Transaction Amount': 'transaction_amount',
             'Account Balance After Transaction': 'acc_balancer_after_transaction',
@@ -67,7 +67,7 @@ class Fact_Transformer(BaseETL):
                       'Loan Status']].copy()
         
         loan_df = loan_df.rename(columns={
-            'Approval/Rejection Date': 'application_date_key',
+            'Approval/Rejection Date': 'application_date',
             'Loan Status': 'application_status'
         })
         
@@ -84,8 +84,8 @@ class Fact_Transformer(BaseETL):
         
         feedback_df = feedback_df.rename(columns={
             'Feedback ID': 'feedback_id',
-            'Feedback Date': 'feedback_date_key',
-            'Resolution Date': 'resolution_date_key',
+            'Feedback Date': 'feedback_date',
+            'Resolution Date': 'resolution_date',
             'Feedback Type': 'feedback_type',
             'Resolution Status': 'resolution_status'
         })

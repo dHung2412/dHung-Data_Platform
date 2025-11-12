@@ -1,6 +1,5 @@
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-
 from etl_design.base_etl import BaseETL
 from connector_storage.minio_connector import MinIOConnector
 import tempfile
@@ -15,16 +14,6 @@ class Minio_Extracter(BaseETL):
         self.connector = None
     
     def execute(self, bucket_name: str, object_name: str) -> str:
-        """
-        Extract file from MinIO and return local file path
-        
-        Args:
-            bucket_name: MinIO bucket name
-            object_name: Object name in bucket
-            
-        Returns:
-            str: Path to downloaded file
-        """
         try: 
             self.log_info(f"----> Extracting {bucket_name}/{object_name} from MinIO")
 
@@ -35,12 +24,10 @@ class Minio_Extracter(BaseETL):
                 secure=self.config.secure
             )
 
-            # Create temporary file
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.csv')
             local_path = temp_file.name
             temp_file.close()
 
-            # Download from MinIO
             success = self.connector.download_file(bucket_name, object_name, local_path)
             if success:
                 self.log_info(f"----> Successfully extracted to {local_path}")

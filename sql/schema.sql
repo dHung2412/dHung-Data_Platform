@@ -134,7 +134,7 @@ CREATE TABLE Fact_Transaction (
     transaction_id_source           VARCHAR(100) NOT NULL,      -- Degenerate Key
 
     -- FK
-    date_key                        DATE NOT NULL,              -- From Transaction Date
+    transaction_date_key                        DATE NOT NULL,              -- From Transaction Date
     customer_key                    INT NOT NULL,
     account_key                     INT NOT NULL,
     branch_key                      INT NOT NULL,
